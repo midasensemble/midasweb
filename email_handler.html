@@ -285,12 +285,27 @@
             if (openAppBtn) openAppBtn.style.display = 'none';
         }
 
+        // Build deep link with all URL parameters for verification
+        function buildDeepLink(path) {
+            // Construct deep link with all parameters from current URL
+            const deepLinkUrl = new URL(DEEP_LINK_SCHEME + path);
+
+            // Copy all parameters to deep link (including code, access_token, refresh_token, etc.)
+            Object.keys(params).forEach(key => {
+                if (params[key]) {
+                    deepLinkUrl.searchParams.set(key, params[key]);
+                }
+            });
+
+            return deepLinkUrl.toString();
+        }
+
         // Verification type configurations
         const VERIFICATION_CONFIGS = {
             signup: {
                 title: 'Email Verified!',
                 message: 'Your email has been successfully verified. You can now sign in to Travelize and start planning your adventures!',
-                deepLink: DEEP_LINK_SCHEME + 'confirm-email/',
+                deepLink: buildDeepLink('confirm-email/'),
                 steps: [
                     'Open the Travelize app on your device',
                     'Tap on "Sign In" or "Login"',
@@ -301,7 +316,7 @@
             recovery: {
                 title: 'Password Reset',
                 message: 'Your password reset has been verified. Please open the Travelize app to set your new password.',
-                deepLink: DEEP_LINK_SCHEME + 'reset-password/',
+                deepLink: buildDeepLink('reset-password/'),
                 steps: [
                     'Open the Travelize app on your device',
                     'You should see the password reset screen',
