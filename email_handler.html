@@ -3,8 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'">
     <title>Travelize - Email Verification</title>
     <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-light: #6366F1;
+            --gradient-primary: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            --gradient-error: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            --text-dark: #1a1b23;
+            --text-muted: #6b7280;
+            --bg-light: #f9fafb;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -34,7 +45,7 @@
         .icon {
             width: 80px;
             height: 80px;
-            background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%);
+            background: var(--gradient-primary);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -44,7 +55,7 @@
         }
 
         .icon.error {
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            background: var(--gradient-error);
         }
 
         .icon::after {
@@ -75,14 +86,14 @@
         }
 
         h1 {
-            color: #1a1b23;
+            color: var(--text-dark);
             font-size: 32px;
             margin-bottom: 16px;
             font-weight: 700;
         }
 
         .subtitle {
-            color: #6b7280;
+            color: var(--text-muted);
             font-size: 18px;
             margin-bottom: 32px;
             line-height: 1.6;
@@ -90,7 +101,7 @@
 
         .button {
             display: inline-block;
-            background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%);
+            background: var(--gradient-primary);
             color: white;
             text-decoration: none;
             padding: 16px 48px;
@@ -111,13 +122,13 @@
 
         .button.secondary {
             background: white;
-            color: #4F46E5;
-            border: 2px solid #4F46E5;
+            color: var(--primary);
+            border: 2px solid var(--primary);
             box-shadow: none;
         }
 
         .button.secondary:hover {
-            background: #f9fafb;
+            background: var(--bg-light);
             box-shadow: none;
         }
 
@@ -128,7 +139,7 @@
         }
 
         .instructions {
-            background: #f9fafb;
+            background: var(--bg-light);
             border-radius: 12px;
             padding: 20px;
             margin-top: 32px;
@@ -142,7 +153,7 @@
 
         .instructions ol {
             text-align: left;
-            color: #6b7280;
+            color: var(--text-muted);
             font-size: 14px;
             line-height: 1.8;
             padding-left: 20px;
@@ -197,32 +208,36 @@
     </div>
 
     <script>
+        // Constants
+        const AUTO_REDIRECT_DELAY = 1000;
+        const SHOW_INSTRUCTIONS_DELAY = 500;
+        const DEEP_LINK_SCHEME = 'ai.travelize.app://';
+
         // Parse URL parameters (both query and hash)
         function getUrlParams() {
             const params = {};
 
-            // Parse query parameters
-            const queryString = window.location.search.substring(1);
-            queryString.split('&').forEach(param => {
-                const [key, value] = param.split('=');
-                if (key) params[key] = decodeURIComponent(value || '');
+            // Parse query parameters using URLSearchParams
+            new URLSearchParams(window.location.search).forEach((value, key) => {
+                params[key] = value;
             });
 
             // Parse hash parameters (Supabase may use hash for tokens)
-            const hash = window.location.hash.substring(1);
-            hash.split('&').forEach(param => {
-                const [key, value] = param.split('=');
-                if (key) params[key] = decodeURIComponent(value || '');
+            new URLSearchParams(window.location.hash.substring(1)).forEach((value, key) => {
+                params[key] = value;
             });
 
             return params;
         }
 
-        // Get the type from URL
+        // Get URL parameters
         const params = getUrlParams();
-        const type = params.type || 'unknown';
-        const accessToken = params.access_token;
+
+        // Extract error if present
         const error = params.error || params.error_description;
+
+        // Determine verification type - must be explicitly provided
+        const type = params.type || 'unknown';
 
         // Detect if on mobile
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -256,10 +271,10 @@
             if (isMobile && config.deepLink && !config.error) {
                 setTimeout(() => {
                     window.location.href = config.deepLink;
-                }, 1000);
+                }, AUTO_REDIRECT_DELAY);
             } else if (!isMobile) {
                 // On desktop, auto-show instructions
-                setTimeout(showInstructions, 500);
+                setTimeout(showInstructions, SHOW_INSTRUCTIONS_DELAY);
             }
         }
 
@@ -270,38 +285,23 @@
             if (openAppBtn) openAppBtn.style.display = 'none';
         }
 
-        // Handle different verification types
-        if (error) {
-            // Error case
-            showUI({
-                error: true,
-                title: 'Verification Failed',
-                message: error || 'Something went wrong during verification. Please try again.',
-                steps: [
-                    'Check your email for a new verification link',
-                    'Make sure you\'re using the latest link from your email',
-                    'Contact support if the problem persists'
-                ]
-            });
-        } else if (type === 'signup') {
-            // Email confirmation for signup
-            showUI({
+        // Verification type configurations
+        const VERIFICATION_CONFIGS = {
+            signup: {
                 title: 'Email Verified!',
                 message: 'Your email has been successfully verified. You can now sign in to Travelize and start planning your adventures!',
-                deepLink: 'ai.travelize.app://confirm-email/',
+                deepLink: DEEP_LINK_SCHEME + 'confirm-email/',
                 steps: [
                     'Open the Travelize app on your device',
                     'Tap on "Sign In" or "Login"',
                     'Enter your email and password',
                     'Start planning your next trip!'
                 ]
-            });
-        } else if (type === 'recovery') {
-            // Password reset
-            showUI({
+            },
+            recovery: {
                 title: 'Password Reset',
                 message: 'Your password reset has been verified. Please open the Travelize app to set your new password.',
-                deepLink: 'ai.travelize.app://reset-password/',
+                deepLink: DEEP_LINK_SCHEME + 'reset-password/',
                 steps: [
                     'Open the Travelize app on your device',
                     'You should see the password reset screen',
@@ -309,43 +309,39 @@
                     'Confirm your new password',
                     'Sign in with your new credentials'
                 ]
-            });
-        } else if (type === 'email_change') {
-            // Email change confirmation
-            showUI({
-                title: 'Email Changed!',
-                message: 'Your email address has been successfully updated.',
-                deepLink: 'ai.travelize.app://login-callback/',
-                steps: [
-                    'Open the Travelize app',
-                    'Your new email address is now active',
-                    'Use it for future sign-ins'
-                ]
-            });
-        } else if (type === 'invite') {
-            // Team invite (if you implement this later)
-            showUI({
-                title: 'Invitation Accepted!',
-                message: 'Welcome to Travelize! Your account has been activated.',
-                deepLink: 'ai.travelize.app://login-callback/',
-                steps: [
-                    'Open the Travelize app',
-                    'Sign in with your credentials',
-                    'Start exploring!'
-                ]
-            });
+            }
+        };
+
+        // Error configurations
+        const ERROR_CONFIG = {
+            error: true,
+            title: 'Verification Failed',
+            message: error || 'Something went wrong during verification. Please try again.',
+            steps: [
+                'Check your email for a new verification link',
+                'Make sure you\'re using the latest link from your email',
+                'Contact support if the problem persists'
+            ]
+        };
+
+        const INVALID_LINK_CONFIG = {
+            error: true,
+            title: 'Invalid Link',
+            message: 'This verification link is invalid or has expired. Please request a new one.',
+            steps: [
+                'Open the Travelize app',
+                'Request a new verification email',
+                'Check your email for the latest link'
+            ]
+        };
+
+        // Handle verification based on type
+        if (error) {
+            showUI(ERROR_CONFIG);
+        } else if (VERIFICATION_CONFIGS[type]) {
+            showUI(VERIFICATION_CONFIGS[type]);
         } else {
-            // Unknown type or missing parameters
-            showUI({
-                error: true,
-                title: 'Invalid Link',
-                message: 'This verification link is invalid or has expired. Please request a new one.',
-                steps: [
-                    'Open the Travelize app',
-                    'Request a new verification email',
-                    'Check your email for the latest link'
-                ]
-            });
+            showUI(INVALID_LINK_CONFIG);
         }
     </script>
 </body>
